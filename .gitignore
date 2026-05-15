@@ -1,2 +1,7 @@
-Hello thi is my new file.
-I hope doing ted
+__pycache__/
+.venv/
+.pytest_cache/
+*.pyc
+.env
+*.db
+app/static/uploads/*
