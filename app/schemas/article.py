@@ -2,17 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import date
 
-
-CATEGORIES = [
-    "Inteligencia Artificial",
-    "Ciberseguridad",
-    "Cloud Computing",
-    "Blockchain",
-    "DevOps",
-    "Desarrollo Web",
-    "Data Science",
-    "IoT",
-]
+from app.schemas.category import CategoryResponse
 
 
 class ArticleBase(BaseModel):
@@ -38,22 +28,23 @@ class ArticleBase(BaseModel):
         ...,
         description="Fecha de publicación del artículo"
     )
-    category: Optional[str] = Field(
+    category_id: int | None = Field(
         None,
-        description="Categoría del artículo",
+        ge=1,
+        description="ID de la categoría del artículo",
     )
 
 
 class ArticleCreate(ArticleBase):
     user_id: int = Field(..., ge=1, description="ID del autor")
-    image_url: Optional[str] = Field(
+    image_url: str | None = Field(
         None,
         description="URL de la imagen asociada al artículo"
     )
 
 
 class ArticleCreateRequest(ArticleBase):
-    image_url: Optional[str] = Field(
+    image_url: str | None = Field(
         None,
         description="URL de la imagen asociada al artículo"
     )
@@ -70,8 +61,8 @@ class ArticleUpdate(BaseModel):
         None, ge=1, le=999
     )
     fecha_publication: Optional[date] = None
-    category: Optional[str] = None
-    image_url: Optional[str] = Field(
+    category_id: int | None = Field(None, ge=1)
+    image_url: str | None = Field(
         None,
         description="URL de la imagen asociada al artículo"
     )
@@ -81,7 +72,8 @@ class ArticleResponse(ArticleBase):
     id: int
     user_id: int
     author_name: str
-    image_url: Optional[str] = None
-    author_image_url: Optional[str] = None
+    category: CategoryResponse | None = None
+    image_url: str | None = None
+    author_image_url: str | None = None
 
     model_config = {"from_attributes": True}

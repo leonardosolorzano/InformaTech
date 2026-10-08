@@ -2,6 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.article import Article as ArticleModel
+from app.models.category import Category as CategoryModel
 from app.models.user import User as UserModel
 from app.schemas.article import ArticleCreate, ArticleUpdate
 
@@ -31,12 +32,22 @@ def create(db: Session, article_in: ArticleCreate) -> ArticleModel:
             detail="User not found. A registered user is required to create an article.",
         )
 
+    if article_in.category_id is not None:
+        category = db.query(CategoryModel).filter(
+            CategoryModel.id == article_in.category_id
+        ).first()
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Category not found.",
+            )
+
     article = ArticleModel(
         title=article_in.title,
         content=article_in.content,
         minutes_to_read=article_in.minutes_to_read,
         fecha_publication=article_in.fecha_publication,
-        category=article_in.category,
+        category_id=article_in.category_id,
         image_url=article_in.image_url,
         user_id=article_in.user_id,
     )
@@ -50,7 +61,18 @@ def update(db: Session, article_id: int, article_in: ArticleUpdate) -> ArticleMo
     article = db.query(ArticleModel).filter(ArticleModel.id == article_id).first()
     if not article:
         return None
-    for key, value in article_in.model_dump(exclude_unset=True).items():
+
+    update_data = article_in.model_dump(exclude_unset=True)
+    if update_data.get("category_id") is not None:
+        category = db.query(CategoryModel).filter(
+            CategoryModel.id == update_data["category_id"]
+        ).first()
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Category not found.",
+            )
+    for key, value in update_data.items():
         setattr(article, key, value)
     db.commit()
     db.refresh(article)

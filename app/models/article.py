@@ -4,18 +4,7 @@ from sqlalchemy import String, Integer, Text, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
-
-
-CATEGORIES = [
-    "Inteligencia Artificial",
-    "Ciberseguridad",
-    "Cloud Computing",
-    "Blockchain",
-    "DevOps",
-    "Desarrollo Web",
-    "Data Science",
-    "IoT",
-]
+from app.models.category import Category
 
 
 class Article(Base):
@@ -29,7 +18,11 @@ class Article(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
     )
-    category: Mapped[str | None] = mapped_column(String(50), nullable=True, default=None)
+    category_id: Mapped[int | None] = mapped_column(
+        ForeignKey("categories.id"),
+        nullable=True,
+        index=True,
+    )
 
     image_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
@@ -39,8 +32,13 @@ class Article(Base):
         index=True,
     )
 
-    author: Mapped["User"] = relationship(
+    author: Mapped['User'] = relationship(
         "User",
+        back_populates="articles",
+    )
+
+    category: Mapped[Category | None] = relationship(
+        "Category",
         back_populates="articles",
     )
 

@@ -1,10 +1,8 @@
-from typing import Optional
-
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import String, Integer
 
 from app.core.database import Base
-from app.models.article import Article
+
 
 class User(Base):
     __tablename__ = "users"
@@ -20,7 +18,7 @@ class User(Base):
         default=None
     )
 
-    articles: Mapped[list[Article]] = relationship(
+    articles: Mapped[list['Article']] = relationship(
         back_populates="author",
         cascade="all, delete-orphan"
     )
