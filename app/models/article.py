@@ -1,51 +1,51 @@
-from datetime import UTC, datetime
+import enum
+from datetime import datetime
 
-from sqlalchemy import String, Integer, Text, DateTime, ForeignKey
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.database import Base
+from app.db.base import Base
 from app.models.category import Category
+from app.models.mixins import TimestampMixin
+from app.models.tag import Tag, article_tags
+from app.models.user import User
 
 
-class Article(Base):
+class ArticleStatus(str, enum.Enum):
+    DRAFT = "draft"          # borrador, solo visible para el autor
+    PENDING = "pending"      # enviado a revisión
+    PUBLISHED = "published"  # visible públicamente
+    REJECTED = "rejected"    # rechazado por un editor (con motivo)
+
+
+class Article(TimestampMixin, Base):
     __tablename__ = "articles"
+    __table_args__ = (Index("ix_articles_status_published_at", "status", "published_at"),)
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    title: Mapped[str] = mapped_column(String(150), nullable=False, index=True)
-    content: Mapped[str] = mapped_column(Text, nullable=False)
-    minutes_to_read: Mapped[int] = mapped_column(Integer, nullable=False)
-    fecha_publication: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(UTC),
-    )
-    category_id: Mapped[int | None] = mapped_column(
-        ForeignKey("categories.id"),
-        nullable=True,
-        index=True,
-    )
-
-    image_url: Mapped[str | None] = mapped_column(String(255), nullable=True)
-
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id"),
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(200))
+    slug: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    summary: Mapped[str] = mapped_column(String(500))
+    content: Mapped[str] = mapped_column(Text)
+    cover_image_url: Mapped[str | None] = mapped_column(String(500))
+    status: Mapped[ArticleStatus] = mapped_column(
+        Enum(ArticleStatus, native_enum=False, length=20),
+        default=ArticleStatus.DRAFT,
         nullable=False,
         index=True,
     )
+    rejection_reason: Mapped[str | None] = mapped_column(Text)
+    views_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    author: Mapped['User'] = relationship(
-        "User",
-        back_populates="articles",
+    author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True)
+    category_id: Mapped[int] = mapped_column(
+        ForeignKey("categories.id", ondelete="RESTRICT"), index=True
     )
 
-    category: Mapped[Category | None] = relationship(
-        "Category",
-        back_populates="articles",
+    author: Mapped[User] = relationship(back_populates="articles")
+    category: Mapped[Category] = relationship(back_populates="articles")
+    tags: Mapped[list[Tag]] = relationship(secondary=article_tags, back_populates="articles")
+    comments: Mapped[list["Comment"]] = relationship(  # noqa: F821
+        back_populates="article", cascade="all, delete-orphan"
     )
-
-    @property
-    def author_name(self) -> str:
-        return self.author.full_name if self.author else ""
-
-    @property
-    def author_image_url(self) -> str | None:
-        return self.author.image_url if self.author else None

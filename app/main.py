@@ -1,102 +1,85 @@
+import logging
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from sqlalchemy import inspect, text
+from sqlalchemy import text
 
-from app.api.v1.articles import router as articles_router
-from app.api.v1.users import router as users_router
-from app.api.v1.auth import router as auth_router
-from app.api.v1.category import router as category_router
+from app.api.v1.router import api_router
 from app.core.config import settings
-from app.core.database import Base, engine
-from app.core.limiter import limiter
+from app.core.exceptions import AppError
+from app.core.logging import setup_logging
+from app.db.session import engine
+
+logger = logging.getLogger("app")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
-    article_columns = {
-        column["name"] for column in inspect(engine).get_columns("articles")
-    }
-    if "category_id" not in article_columns:
-        with engine.begin() as conn:
-            conn.execute(
-                text(
-                    "ALTER TABLE articles ADD COLUMN category_id "
-                    "INTEGER REFERENCES categories(id)"
-                )
-            )
-            if "category" in article_columns:
-                conn.execute(
-                    text(
-                        "INSERT INTO categories (name) "
-                        "SELECT DISTINCT articles.category FROM articles "
-                        "WHERE articles.category IS NOT NULL "
-                        "AND articles.category != '' "
-                        "AND NOT EXISTS (SELECT 1 FROM categories "
-                        "WHERE categories.name = articles.category)"
-                    )
-                )
-                conn.execute(
-                    text(
-                        "UPDATE articles SET category_id = "
-                        "(SELECT categories.id FROM categories "
-                        "WHERE categories.name = articles.category) "
-                        "WHERE articles.category IS NOT NULL"
-                    )
-                )
+    setup_logging(settings.DEBUG)
+    Path(settings.UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
+    logger.info("Iniciando %s v%s (%s)", settings.PROJECT_NAME, settings.VERSION, settings.ENVIRONMENT)
     yield
+    engine.dispose()
 
 
-app = FastAPI(
-    title=settings.app_name,
-    version=settings.app_version,
-    lifespan=lifespan,
-    debug=settings.debug,
-)
+def create_app() -> FastAPI:
+    # Se crea antes para que StaticFiles encuentre el directorio al montarse.
+    Path(settings.UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
 
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-app.include_router(articles_router)
-app.include_router(category_router)
-app.include_router(users_router)
-app.include_router(auth_router)
-
-
-static_dir = Path(__file__).resolve().parent / "static"
-static_dir.mkdir(parents=True, exist_ok=True)
-app.mount("/media", StaticFiles(directory=str(static_dir)), name="media")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.get("/")
-def root():
-    return {
-        "app": settings.app_name,
-        "version": settings.app_version,
-        "debug": settings.debug,
-    }
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=settings.debug,
+    app = FastAPI(
+        title=settings.PROJECT_NAME,
+        version=settings.VERSION,
+        description="API REST para un sitio de noticias tecnológicas con artículos aportados por la comunidad.",
+        lifespan=lifespan,
+        docs_url=None if settings.ENVIRONMENT == "production" else "/docs",
+        redoc_url=None if settings.ENVIRONMENT == "production" else "/redoc",
     )
+
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    @app.middleware("http")
+    async def timing_middleware(request: Request, call_next):
+        start = time.perf_counter()
+        response = await call_next(request)
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        response.headers["X-Process-Time-Ms"] = f"{elapsed_ms:.1f}"
+        logger.info("%s %s -> %s (%.1f ms)", request.method, request.url.path, response.status_code, elapsed_ms)
+        return response
+
+    # Excepciones de dominio -> respuestas HTTP uniformes {"detail": "..."}
+    @app.exception_handler(AppError)
+    async def app_error_handler(request: Request, exc: AppError):
+        headers = {"WWW-Authenticate": "Bearer"} if exc.status_code == 401 else None
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=headers)
+
+    @app.exception_handler(Exception)
+    async def unhandled_error_handler(request: Request, exc: Exception):
+        logger.exception("Error no controlado en %s %s", request.method, request.url.path)
+        return JSONResponse(status_code=500, content={"detail": "Error interno del servidor"})
+
+    app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+    app.mount(settings.MEDIA_URL, StaticFiles(directory=settings.UPLOAD_DIR), name="media")
+
+    @app.get("/health", tags=["Sistema"], summary="Health check")
+    def health():
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {"status": "ok", "version": settings.VERSION}
+
+    return app
+
+
+app = create_app()

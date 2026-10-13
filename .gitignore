@@ -1,7 +1,7 @@
 __pycache__/
-.venv/
-.pytest_cache/
 *.pyc
 .env
 *.db
-app/static/uploads/*
+uploads/
+.pytest_cache/
+.venv/

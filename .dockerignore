@@ -1,0 +1,16 @@
+.git
+.env
+*.md
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+.idea/
+.vscode/
+uploads/*
+!uploads/.gitkeep
+web/

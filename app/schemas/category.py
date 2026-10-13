@@ -1,30 +1,26 @@
-from pydantic import BaseModel, Field
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class CategoryBase(BaseModel):
-    name: str = Field(
-        ...,
-        min_length=3,
-        max_length=100,
-        description="Nombre de la categoría, entre 3 y 100 caracteres",
-    )
-    description: str | None = Field(
-        None,
-        max_length=500,
-        description="Descripción opcional de la categoría",
-    )
+class CategoryCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=80)
+    description: str | None = Field(default=None, max_length=1000)
 
 
-class CategoryCreate(CategoryBase):
-    pass
+class CategoryUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=2, max_length=80)
+    description: str | None = Field(default=None, max_length=1000)
 
 
-class CategoryUpdate(CategoryBase):
-    name: str | None = Field(None, min_length=3, max_length=100)
+class CategoryRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
 
-
-class CategoryResponse(CategoryBase):
     id: int
+    name: str
+    slug: str
+    description: str | None = None
 
-    model_config = {"from_attributes": True}
 
+class CategoryDetail(CategoryRead):
+    created_at: datetime

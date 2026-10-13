@@ -1,155 +1,136 @@
-from datetime import date
+import io
 
-import pytest
-from sqlalchemy.orm import Session
+from PIL import Image
 
-from app.models.article import Article as ArticleModel
-from app.models.user import User as UserModel
-from app.schemas.article import ArticleCreate, ArticleUpdate
-from app.schemas.user import UserCreate
-from app.services import articles as article_service
-from app.services import users as user_service
+BASE = "/api/v1"
 
 
-@pytest.fixture(autouse=True)
-def seed_data(db: Session):
-    users = [
-        UserModel(
-            username="john",
-            email="john@example.com",
-            full_name="John Doe",
-            hashed_password="dummyhash",
-        ),
-        UserModel(
-            username="jane",
-            email="jane@example.com",
-            full_name="Jane Doe",
-            hashed_password="dummyhash",
-        ),
-    ]
-    for u in users:
-        db.add(u)
-    db.commit()
-
-    articles = [
-        ArticleModel(
-            title="La importancia de la ciberseguridad en la era digital",
-            content="La ciberseguridad se ha convertido en una preocupación fundamental en la era digital. Con el aumento de las amenazas cibernéticas, es crucial que tanto individuos como organizaciones tomen medidas para proteger su información y sistemas.",
-            user_id=1,
-            minutes_to_read=5,
-            fecha_publication=date(2024, 4, 1),
-        ),
-        ArticleModel(
-            title="Los desafíos de la privacidad en el entorno digital",
-            content="Los desafíos de la privacidad en el entorno digital son cada vez más complejos. Con el crecimiento de la digitalización, es esencial garantizar que los derechos de los usuarios sean respetados y protegidos.",
-            user_id=2,
-            minutes_to_read=10,
-            fecha_publication=date(2024, 5, 1),
-        ),
-        ArticleModel(
-            title="La transformación digital en la educación",
-            content="La transformación digital en la educación se ha convertido en un tema de gran importancia. Con el avance tecnológico, es fundamental integrar las herramientas digitales en el proceso de enseñanza-aprendizaje.",
-            user_id=1,
-            minutes_to_read=5,
-            fecha_publication=date(2024, 6, 1),
-        ),
-    ]
-    for a in articles:
-        db.add(a)
-    db.commit()
+def _publish(client, payload, author_h, editor_h) -> dict:
+    art = client.post(f"{BASE}/articles", json=payload, headers=author_h).json()
+    assert client.post(f"{BASE}/articles/{art['id']}/submit", headers=author_h).status_code == 200
+    r = client.post(f"{BASE}/articles/{art['id']}/review", json={"action": "approve"}, headers=editor_h)
+    assert r.status_code == 200
+    return r.json()
 
 
-def test_get_all(db: Session):
-    result = article_service.get_all(db)
-    assert len(result) == 3
+def test_full_lifecycle(client, user_headers, editor_headers, article_payload):
+    # crear -> borrador, tags normalizados y sin duplicados
+    r = client.post(f"{BASE}/articles", json=article_payload, headers=user_headers)
+    assert r.status_code == 201
+    art = r.json()
+    assert art["status"] == "draft" and art["slug"] == "openai-lanza-un-nuevo-modelo"
+    assert sorted(t["slug"] for t in art["tags"]) == ["ia", "openai"]
+    assert art["author"]["username"] == "alice"
+
+    # el borrador NO es público
+    assert client.get(f"{BASE}/articles").json()["total"] == 0
+    assert client.get(f"{BASE}/articles/{art['slug']}").status_code == 404
+    # pero el autor sí lo ve
+    assert client.get(f"{BASE}/articles/{art['slug']}", headers=user_headers).status_code == 200
+
+    # enviar a revisión y aprobar
+    assert client.post(f"{BASE}/articles/{art['id']}/submit", headers=user_headers).json()["status"] == "pending"
+    queue = client.get(f"{BASE}/articles/moderation/queue", headers=editor_headers).json()
+    assert queue["total"] == 1
+    r = client.post(f"{BASE}/articles/{art['id']}/review", json={"action": "approve"}, headers=editor_headers)
+    assert r.json()["status"] == "published" and r.json()["published_at"]
+
+    # ahora es público y cuenta vistas
+    assert client.get(f"{BASE}/articles").json()["total"] == 1
+    assert client.get(f"{BASE}/articles/{art['slug']}").json()["views_count"] == 1
+    assert client.get(f"{BASE}/articles/{art['slug']}").json()["views_count"] == 2
 
 
-def test_get_by_id_found(db: Session):
-    article = article_service.get_by_id(db, 1)
-    assert article is not None
-    assert article.title == "La importancia de la ciberseguridad en la era digital"
+def test_reject_requires_reason_and_resubmit(client, user_headers, editor_headers, article_payload):
+    art = client.post(f"{BASE}/articles", json=article_payload, headers=user_headers).json()
+    client.post(f"{BASE}/articles/{art['id']}/submit", headers=user_headers)
+    assert client.post(f"{BASE}/articles/{art['id']}/review", json={"action": "reject"},
+                       headers=editor_headers).status_code == 400
+    r = client.post(f"{BASE}/articles/{art['id']}/review",
+                    json={"action": "reject", "reason": "Falta fuente"}, headers=editor_headers)
+    assert r.json()["status"] == "rejected" and r.json()["rejection_reason"] == "Falta fuente"
+    r = client.post(f"{BASE}/articles/{art['id']}/submit", headers=user_headers)
+    assert r.json()["status"] == "pending" and r.json()["rejection_reason"] is None
 
 
-def test_get_by_id_not_found(db: Session):
-    article = article_service.get_by_id(db, 999)
-    assert article is None
+def test_permissions(client, user_headers, other_headers, editor_headers, article_payload):
+    art = client.post(f"{BASE}/articles", json=article_payload, headers=user_headers).json()
+    assert client.post(f"{BASE}/articles", json=article_payload).status_code == 401
+    # otro usuario no puede editar, borrar, enviar ni moderar
+    assert client.patch(f"{BASE}/articles/{art['id']}", json={"title": "Hackeado!!"}, headers=other_headers).status_code == 403
+    assert client.delete(f"{BASE}/articles/{art['id']}", headers=other_headers).status_code == 403
+    assert client.post(f"{BASE}/articles/{art['id']}/submit", headers=other_headers).status_code == 403
+    assert client.post(f"{BASE}/articles/{art['id']}/review", json={"action": "approve"}, headers=other_headers).status_code == 403
+    assert client.get(f"{BASE}/articles/moderation/queue", headers=other_headers).status_code == 403
+    # el editor sí puede editar
+    assert client.patch(f"{BASE}/articles/{art['id']}", json={"title": "Titulo corregido"}, headers=editor_headers).status_code == 200
 
 
-def test_get_by_author_found(db: Session):
-    articles = article_service.get_by_author(db, "John Doe")
-    assert len(articles) == 2
+def test_invalid_category_and_validation(client, user_headers, article_payload):
+    bad = {**article_payload, "category_id": 9999}
+    assert client.post(f"{BASE}/articles", json=bad, headers=user_headers).status_code == 404
+    short = {**article_payload, "title": "abc"}
+    assert client.post(f"{BASE}/articles", json=short, headers=user_headers).status_code == 422
 
 
-def test_get_by_author_not_found(db: Session):
-    articles = article_service.get_by_author(db, "Unknown")
-    assert len(articles) == 0
+def test_edit_published_goes_back_to_pending_and_slug_unique(client, user_headers, editor_headers, article_payload):
+    art = _publish(client, article_payload, user_headers, editor_headers)
+    r = client.patch(f"{BASE}/articles/{art['id']}", json={"title": "Titulo nuevo del articulo"}, headers=user_headers)
+    assert r.json()["status"] == "pending" and r.json()["slug"] == art["slug"]  # slug estable
+    dup = client.post(f"{BASE}/articles", json=article_payload, headers=user_headers).json()
+    assert dup["slug"] == "openai-lanza-un-nuevo-modelo-2"
 
 
-def test_create(db: Session):
-    payload = ArticleCreate(
-        title="Nuevo artículo de prueba",
-        content="Este es un artículo de prueba con contenido suficientemente largo para superar la validación de mínimo cincuenta caracteres exigida por el sistema.",
-        user_id=1,
-        minutes_to_read=3,
-        fecha_publication=date(2024, 7, 1),
-    )
-    created = article_service.create(db, payload)
-    assert created.id is not None
-    assert created.title == "Nuevo artículo de prueba"
-    assert created.author_name == "John Doe"
+def test_filters_search_pagination(client, user_headers, other_headers, editor_headers, admin_headers, article_payload):
+    cat2 = client.post(f"{BASE}/categories", json={"name": "Hardware"}, headers=admin_headers).json()
+    _publish(client, article_payload, user_headers, editor_headers)
+    p2 = {**article_payload, "title": "Nueva GPU de NVIDIA", "category_id": cat2["id"], "tags": ["gpu"]}
+    _publish(client, p2, other_headers, editor_headers)
 
-    all_articles = article_service.get_all(db)
-    assert len(all_articles) == 4
-
-
-def test_create_user_not_found(db: Session):
-    payload = ArticleCreate(
-        title="Artículo sin autor válido",
-        content="Este artículo intenta crearse con un user_id que no existe en la base de datos.",
-        user_id=999,
-        minutes_to_read=5,
-        fecha_publication=date(2024, 8, 1),
-    )
-    with pytest.raises(Exception) as exc:
-        article_service.create(db, payload)
-    assert "User not found" in str(exc.value)
+    assert client.get(f"{BASE}/articles", params={"category": "hardware"}).json()["total"] == 1
+    assert client.get(f"{BASE}/articles", params={"tag": "gpu"}).json()["items"][0]["title"] == "Nueva GPU de NVIDIA"
+    assert client.get(f"{BASE}/articles", params={"author": "alice"}).json()["total"] == 1
+    assert client.get(f"{BASE}/articles", params={"q": "nvidia"}).json()["total"] == 1
+    assert client.get(f"{BASE}/articles", params={"q": "100%"}).json()["total"] == 0  # % escapado
+    page = client.get(f"{BASE}/articles", params={"size": 1, "page": 2}).json()
+    assert page["total"] == 2 and page["pages"] == 2 and len(page["items"]) == 1
+    assert client.get(f"{BASE}/articles", params={"size": 500}).status_code == 422
+    tags = client.get(f"{BASE}/tags").json()
+    assert {t["slug"] for t in tags} == {"ia", "openai", "gpu"}
+    # "mis artículos"
+    assert client.get(f"{BASE}/articles/me", headers=user_headers).json()["total"] == 1
 
 
-def test_update(db: Session):
-    payload = ArticleUpdate(title="Updated Title")
-    updated = article_service.update(db, 1, payload)
-    assert updated is not None
-    assert updated.title == "Updated Title"
+def _png(size=(10, 10), fmt="PNG") -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", size, "red").save(buf, fmt)
+    return buf.getvalue()
 
 
-def test_update_not_found(db: Session):
-    payload = ArticleUpdate(title="No matter what")
-    updated = article_service.update(db, 999, payload)
-    assert updated is None
+def test_cover_upload(client, user_headers, other_headers, article_payload):
+    art = client.post(f"{BASE}/articles", json=article_payload, headers=user_headers).json()
+    url = f"{BASE}/articles/{art['id']}/cover"
+
+    r = client.post(url, files={"file": ("cover.png", _png(), "image/png")}, headers=user_headers)
+    assert r.status_code == 200
+    cover = r.json()["cover_image_url"]
+    assert cover.startswith("/media/covers/") and cover.endswith(".png")
+    assert client.get(cover).status_code == 200  # servido estáticamente
+
+    # extensión mentirosa: el contenido manda
+    r = client.post(url, files={"file": ("x.png", b"esto no es una imagen", "image/png")}, headers=user_headers)
+    assert r.status_code == 400
+    # otro usuario no puede
+    assert client.post(url, files={"file": ("c.png", _png(), "image/png")}, headers=other_headers).status_code == 403
+    # formato no permitido (GIF)
+    assert client.post(url, files={"file": ("c.gif", _png(fmt="GIF"), "image/gif")}, headers=user_headers).status_code == 400
+    # al reemplazar, la anterior se borra
+    r = client.post(url, files={"file": ("c.jpg", _png(fmt="JPEG"), "image/jpeg")}, headers=user_headers)
+    assert r.json()["cover_image_url"] != cover
+    assert client.get(cover).status_code == 404
 
 
-def test_delete(db: Session):
-    assert article_service.delete(db, 2) is True
-    assert article_service.get_by_id(db, 2) is None
-
-
-def test_delete_not_found(db: Session):
-    assert article_service.delete(db, 999) is False
-
-
-def test_create_user(db: Session):
-    payload = UserCreate(
-        username="newuser",
-        email="new@example.com",
-        full_name="New User",
-        password="secret123",
-    )
-    user = user_service.create_user(db, payload)
-    assert user.id is not None
-    assert user.username == "newuser"
-    assert user.email == "new@example.com"
-    assert user.full_name == "New User"
-    assert user.hashed_password != "secret123"
-
-    all_users = user_service.get_users(db)
-    assert len(all_users) == 3
+def test_delete_article(client, user_headers, article_payload):
+    art = client.post(f"{BASE}/articles", json=article_payload, headers=user_headers).json()
+    assert client.delete(f"{BASE}/articles/{art['id']}", headers=user_headers).status_code == 204
+    assert client.get(f"{BASE}/articles/me", headers=user_headers).json()["total"] == 0
