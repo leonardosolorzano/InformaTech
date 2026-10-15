@@ -92,7 +92,15 @@ export const apiEndpoints = {
   },
   users: {
     me: "/users/me",
+    changePassword: "/users/me/change-password",
+    list: "/users",
     get: (username: string) => `/users/${username}`,
+    update: (id: number) => `/users/${id}`,
+  },
+  admin: {
+    stats: "/admin/stats",
+    articles: "/admin/articles",
+    article: (id: number) => `/admin/articles/${id}`,
   },
   health: "/health",
 } as const;

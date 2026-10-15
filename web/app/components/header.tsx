@@ -2,12 +2,14 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Menu, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowUpRight, Menu, ShieldCheck, UserRound, X } from "lucide-react";
+import { UserNav } from "./user-nav";
+import { useAuth } from "./auth-provider";
 
 export const Header = () => {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -68,24 +70,8 @@ export const Header = () => {
           </Link>
         </div>
 
-        {/* Auth buttons */}
-        <div className="hidden items-center gap-2 md:flex">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="rounded-full text-[11px] font-bold uppercase tracking-[0.1em] hover:bg-black/5"
-            asChild
-          >
-            <Link href="/login">Login</Link>
-          </Button>
-          <Button
-            size="sm"
-            className="rounded-full bg-black px-5 text-[11px] font-bold uppercase tracking-[0.1em] text-white transition-all hover:bg-black/80 hover:scale-105 active:scale-95"
-            asChild
-          >
-            <Link href="/register">Registrarse</Link>
-          </Button>
-        </div>
+        {/* Auth */}
+        <UserNav />
 
         {/* Mobile menu toggle */}
         <button
@@ -133,19 +119,54 @@ export const Header = () => {
           >
             Newsletter
           </Link>
-          <div className="mt-3 flex gap-2 border-t border-black/10 pt-4">
-            <Link
-              href="/login"
-              className="flex-1 rounded-full border border-black/20 py-2.5 text-center transition-colors hover:bg-black/5"
-            >
-              Login
-            </Link>
-            <Link
-              href="/register"
-              className="flex-1 rounded-full bg-black py-2.5 text-center text-white transition-opacity hover:opacity-80"
-            >
-              Registrarse
-            </Link>
+          <div className="mt-3 border-t border-black/10 pt-4">
+            {user ? (
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2 px-1 pb-2">
+                  <UserRound className="size-4" />
+                  <span>{user.username}</span>
+                  <span className="rounded-full bg-[#d8ff48] px-2 py-0.5 text-[10px] font-bold uppercase">
+                    {user.role}
+                  </span>
+                </div>
+                {user.role === "admin" && (
+                  <Link
+                    href="/admin/users"
+                    className="flex items-center justify-center gap-2 rounded-full border border-black/20 py-2.5 text-center transition-colors hover:bg-black/5"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <ShieldCheck className="size-4" />
+                    Panel Admin
+                  </Link>
+                )}
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    void logout();
+                  }}
+                  className="rounded-full bg-black py-2.5 text-center text-white transition-opacity hover:opacity-80"
+                >
+                  Cerrar sesión
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <Link
+                  href="/login"
+                  className="flex-1 rounded-full border border-black/20 py-2.5 text-center transition-colors hover:bg-black/5"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/register"
+                  className="flex-1 rounded-full bg-black py-2.5 text-center text-white transition-opacity hover:opacity-80"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Registrarse
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </div>

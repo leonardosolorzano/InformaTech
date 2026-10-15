@@ -10,6 +10,7 @@ from app.models.article import Article, ArticleStatus
 from app.models.category import Category
 from app.models.tag import Tag
 from app.models.user import User
+from app.schemas.admin import AdminArticleUpdate
 from app.schemas.article import ArticleCreate, ArticleReview, ArticleUpdate
 from app.services import category_service, tag_service
 
@@ -117,8 +118,31 @@ def list_for_moderation(
     return _paginate(db, [Article.status == status], [Article.created_at.asc()], page, size)
 
 
+def admin_list(
+    db: Session, *, page: int, size: int, status: ArticleStatus | None = None,
+    q: str | None = None, category: str | None = None, author: str | None = None,
+) -> tuple[list[Article], int]:
+    """Listado para el panel: incluye todos los estados y todos los autores."""
+    conditions: list = []
+    if status:
+        conditions.append(Article.status == status)
+    if category:
+        conditions.append(Article.category.has(Category.slug == category))
+    if author:
+        conditions.append(Article.author.has(User.username == author))
+    if q:
+        pattern = f"%{escape_like(q.strip())}%"
+        conditions.append(or_(
+            Article.title.ilike(pattern, escape="\\"),
+            Article.summary.ilike(pattern, escape="\\"),
+        ))
+    return _paginate(db, conditions, [Article.created_at.desc(), Article.id.desc()], page, size)
+
+
 # ---------- Escrituras ----------
-def create(db: Session, data: ArticleCreate, author: User) -> Article:
+def create(
+    db: Session, data: ArticleCreate, author: User, status: ArticleStatus = ArticleStatus.DRAFT
+) -> Article:
     category_service.get_or_404(db, data.category_id)
     article = Article(
         title=data.title,
@@ -127,10 +151,35 @@ def create(db: Session, data: ArticleCreate, author: User) -> Article:
         content=data.content,
         category_id=data.category_id,
         author_id=author.id,
-        status=ArticleStatus.DRAFT,
+        status=status,
+        published_at=datetime.now(UTC) if status == ArticleStatus.PUBLISHED else None,
         tags=tag_service.get_or_create_many(db, data.tags),
     )
     db.add(article)
+    db.commit()
+    return get_or_404(db, article.id)
+
+
+def admin_update(db: Session, article: Article, data: AdminArticleUpdate, user: User) -> Article:
+    """Edición desde el panel: puede cambiar cualquier campo y el estado directamente."""
+    if not can_manage(article, user):
+        raise PermissionDeniedError("No tienes permisos para modificar este artículo")
+    values = data.model_dump(exclude_unset=True)
+    new_status = values.pop("status", None)
+    if values.get("category_id") is not None:
+        category_service.get_or_404(db, values["category_id"])
+    if "tags" in values and values["tags"] is not None:
+        article.tags = tag_service.get_or_create_many(db, values.pop("tags"))
+    else:
+        values.pop("tags", None)
+    for field, value in values.items():
+        if value is not None:
+            setattr(article, field, value)
+    if new_status is not None:
+        article.status = new_status
+        if new_status == ArticleStatus.PUBLISHED:
+            article.rejection_reason = None
+            article.published_at = article.published_at or datetime.now(UTC)
     db.commit()
     return get_or_404(db, article.id)
 

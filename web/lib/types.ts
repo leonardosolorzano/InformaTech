@@ -1,5 +1,7 @@
 export type ArticleStatus = "draft" | "pending" | "published" | "rejected";
 
+export type UserRole = "user" | "editor" | "admin";
+
 export interface UserPublic {
   id: number;
   username: string;
@@ -14,10 +16,20 @@ export interface UserRead extends UserPublic {
   created_at: string;
 }
 
+export interface User extends UserPublic {
+  email: string;
+  full_name: string | null;
+  bio: string | null;
+  role: UserRole;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface CategoryRead {
   id: number;
   name: string;
   slug: string;
+  description?: string | null;
 }
 
 export interface CategoryDetail extends CategoryRead {
@@ -91,4 +103,17 @@ export interface CategoryCreate {
 export interface HealthResponse {
   status: string;
   version: string;
+}
+
+export interface AdminStats {
+  users: number;
+  active_users: number;
+  articles_total: number;
+  articles_draft: number;
+  articles_pending: number;
+  articles_published: number;
+  articles_rejected: number;
+  total_views: number;
+  categories: number;
+  tags: number;
 }
