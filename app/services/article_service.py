@@ -103,6 +103,20 @@ def list_published(
     return _paginate(db, conditions, order, page, size)
 
 
+def list_featured(db: Session, *, limit: int = 3) -> list[Article]:
+    """Devuelve los artículos publicados marcados como destacados para portada,
+    ordenados de más reciente a más antiguo, con un límite máximo."""
+    limit = max(1, min(limit, 10))
+    stmt = (
+        select(Article)
+        .where(Article.status == ArticleStatus.PUBLISHED, Article.is_featured == True)  # noqa: E712
+        .options(*_LOAD)
+        .order_by(Article.published_at.desc().nullslast(), Article.id.desc())
+        .limit(limit)
+    )
+    return list(db.scalars(stmt).unique().all())
+
+
 def list_by_author(
     db: Session, author: User, *, page: int, size: int, status: ArticleStatus | None = None
 ) -> tuple[list[Article], int]:

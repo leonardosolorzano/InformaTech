@@ -29,7 +29,12 @@ class Article(TimestampMixin, Base):
     content: Mapped[str] = mapped_column(Text)
     cover_image_url: Mapped[str | None] = mapped_column(String(500))
     status: Mapped[ArticleStatus] = mapped_column(
-        Enum(ArticleStatus, native_enum=False, length=20),
+        Enum(
+            ArticleStatus,
+            native_enum=False,
+            length=20,
+            values_callable=lambda e: [x.value for x in e],
+        ),
         default=ArticleStatus.DRAFT,
         nullable=False,
         index=True,
@@ -37,6 +42,7 @@ class Article(TimestampMixin, Base):
     rejection_reason: Mapped[str | None] = mapped_column(Text)
     views_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    is_featured: Mapped[bool] = mapped_column(default=False, nullable=False, index=True)
 
     author_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True)
     category_id: Mapped[int] = mapped_column(

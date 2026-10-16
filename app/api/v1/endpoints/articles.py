@@ -31,6 +31,15 @@ def list_articles(
     return Page.create(items, total, p.page, p.size)
 
 
+@router.get("/featured", response_model=list[ArticleListItem], summary="Artículos destacados para portada (máximo 3)")
+def featured_articles(
+    db: DbSession,
+    limit: Annotated[int, Query(ge=1, le=10, description="Máximo de artículos destacados a devolver")] = 3,
+):
+    items = article_service.list_featured(db, limit=limit)
+    return items
+
+
 @router.get("/me", response_model=Page[ArticleListItem], summary="Mis artículos (todos los estados)")
 def my_articles(
     db: DbSession, user: CurrentUser, p: PaginationParams,

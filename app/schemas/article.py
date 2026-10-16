@@ -65,6 +65,7 @@ class ArticleListItem(BaseModel):
     status: ArticleStatus
     views_count: int
     published_at: datetime | None = None
+    is_featured: bool = False
     created_at: datetime
     author: UserPublic
     category: CategoryRead

@@ -52,6 +52,7 @@ export interface ArticleListItem {
   status: ArticleStatus;
   views_count: number;
   published_at?: string | null;
+  is_featured: boolean;
   created_at: string;
   author: UserPublic;
   category: CategoryRead;
