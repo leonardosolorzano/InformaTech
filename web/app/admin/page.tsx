@@ -1,66 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  FileText,
+  CheckCircle2,
+  Clock,
   Eye,
+  FileText,
   FolderTree,
+  Pencil,
   Tags,
   Users,
-  Clock,
-  CheckCircle2,
   XCircle,
-  Pencil,
 } from "lucide-react";
-import type { AdminStats } from "@/lib/types";
 
-function StatCard({
-  label,
-  value,
-  icon: Icon,
-  accent = "bg-[#d8ff48]",
-}: {
-  label: string;
-  value: number;
-  icon: React.ComponentType<{ className?: string }>;
-  accent?: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-black/10 bg-white p-5">
-      <div className={`mb-4 grid size-10 place-items-center rounded-xl ${accent}`}>
-        <Icon className="size-5" />
-      </div>
-      <p className="text-3xl font-black tracking-tight">{value}</p>
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#686860]">
-        {label}
-      </p>
-    </div>
-  );
-}
+import { StatCard } from "@/components/admin/stat-card";
+import { FormMessage } from "@/components/shared/form-message";
+import { useAdminStats } from "@/hooks/use-admin-stats";
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState<AdminStats | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const res = await fetch("/api/admin/stats", { cache: "no-store" });
-        if (!res.ok) throw new Error(`Error ${res.status}`);
-        const data = (await res.json()) as AdminStats;
-        if (active) setStats(data);
-      } catch (err) {
-        if (active) {
-          setError(err instanceof Error ? err.message : "Error cargando métricas");
-        }
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, []);
+  const { stats, error } = useAdminStats();
 
   return (
     <div className="space-y-8">
@@ -71,11 +29,7 @@ export default function AdminDashboard() {
         </p>
       </header>
 
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          {error}
-        </div>
-      )}
+      {error && <FormMessage tone="error">{error}</FormMessage>}
 
       {!stats && !error ? (
         <p className="text-sm text-[#686860]">Cargando métricas...</p>

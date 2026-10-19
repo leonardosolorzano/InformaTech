@@ -9,7 +9,8 @@ import {
   Newspaper,
   Users,
 } from "lucide-react";
-import { useAuth } from "../components/auth-provider";
+
+import { useAuth } from "@/components/providers/auth-provider";
 
 const LINKS = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
@@ -24,6 +25,7 @@ interface AdminNavProps {
   role: string;
 }
 
+/** Navegación lateral del panel de administración. */
 export default function AdminNav({ username, fullName, role }: AdminNavProps) {
   const pathname = usePathname();
   const { logout } = useAuth();
