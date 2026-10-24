@@ -10,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { ArticleListItem, ArticleStatus, Page } from "@/lib/types";
+import { toast } from "sonner";
 
 const STATUS_STYLES: Record<ArticleStatus, string> = {
   draft: "bg-black/10 text-[#3f3f38]",
@@ -93,9 +94,12 @@ export default function AdminArticlesPage() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.detail || `Error ${res.status}`);
       }
+      toast.success("Artículo eliminado correctamente");
       setData(await load(status, query));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo eliminar");
+      const message = err instanceof Error ? err.message : "No se pudo eliminar";
+      setError(message);
+      toast.error(message);
     } finally {
       setBusy(null);
     }
@@ -105,20 +109,28 @@ export default function AdminArticlesPage() {
     setBusy(item.id);
     setError(null);
     try {
+      const newStatus = item.status === "published" ? "draft" : "published";
       const res = await fetch(`/api/admin/articles/${item.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          status: item.status === "published" ? "draft" : "published",
+          status: newStatus,
         }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.detail || `Error ${res.status}`);
       }
+      toast.success(
+        newStatus === "published"
+          ? "Artículo publicado correctamente"
+          : "Artículo despublicado correctamente"
+      );
       setData(await load(status, query));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo actualizar");
+      const message = err instanceof Error ? err.message : "No se pudo actualizar";
+      setError(message);
+      toast.error(message);
     } finally {
       setBusy(null);
     }

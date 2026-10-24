@@ -10,6 +10,7 @@ export async function GET() {
     );
     return NextResponse.json(data ?? []);
   } catch (error) {
-    return NextResponse.json({ error: "Error fetching featured articles" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Error fetching featured articles";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

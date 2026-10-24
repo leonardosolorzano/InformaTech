@@ -36,10 +36,13 @@ export interface CategoryDetail extends CategoryRead {
   description?: string | null;
 }
 
-export interface TagWithCount {
+export interface Tag {
   id: number;
   name: string;
   slug: string;
+}
+
+export interface TagWithCount extends Tag {
   articles_count: number;
 }
 
@@ -56,7 +59,7 @@ export interface ArticleListItem {
   created_at: string;
   author: UserPublic;
   category: CategoryRead;
-  tags: TagWithCount[];
+  tags: Tag[];
 }
 
 export interface ArticleRead extends ArticleListItem {

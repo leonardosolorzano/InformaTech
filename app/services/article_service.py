@@ -82,8 +82,11 @@ def register_view(db: Session, article: Article) -> None:
 def list_published(
     db: Session, *, page: int, size: int, category: str | None = None, tag: str | None = None,
     author: str | None = None, q: str | None = None, sort: SortOption = "newest",
+    exclude_featured: bool = False,
 ) -> tuple[list[Article], int]:
     conditions = [Article.status == ArticleStatus.PUBLISHED]
+    if exclude_featured:
+        conditions.append(Article.is_featured == False)  # noqa: E712
     if category:
         conditions.append(Article.category.has(Category.slug == category))
     if tag:

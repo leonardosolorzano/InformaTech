@@ -24,9 +24,18 @@ def list_articles(
     author: Annotated[str | None, Query(description="Username del autor")] = None,
     q: Annotated[str | None, Query(min_length=2, max_length=100, description="Búsqueda en título/resumen")] = None,
     sort: Annotated[article_service.SortOption, Query()] = "newest",
+    exclude_featured: Annotated[bool, Query(description="Excluir artículos mostrados en la portada")] = False,
 ):
     items, total = article_service.list_published(
-        db, page=p.page, size=p.size, category=category, tag=tag, author=author, q=q, sort=sort
+        db,
+        page=p.page,
+        size=p.size,
+        category=category,
+        tag=tag,
+        author=author,
+        q=q,
+        sort=sort,
+        exclude_featured=exclude_featured,
     )
     return Page.create(items, total, p.page, p.size)
 

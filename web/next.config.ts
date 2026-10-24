@@ -3,6 +3,10 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   images: {
+    // Las portadas se sirven desde el backend, que vive en la red privada
+    // (localhost en desarrollo, servicio "api" en Docker). Next.js 16 bloquea
+    // por defecto la optimización de imágenes en IPs privadas.
+    dangerouslyAllowLocalIP: true,
     remotePatterns: [
       {
         protocol: "http",

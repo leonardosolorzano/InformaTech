@@ -1,52 +1,74 @@
-"use client";
-
-import { useEffect, useState, useCallback } from "react";
-import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowRight, Clock3 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
-import { getImageUrl } from "@/lib/api";
-import type { ArticleListItem } from "@/lib/types";
+import { apiEndpoints, getImageUrl } from "@/lib/api";
+import { fetchApiServer } from "@/lib/server/api";
+import type { ArticleListItem, Page } from "@/lib/types";
 
-const ROTATION_MS = 4000;
-const MAX_ITEMS = 3;
+const MAX_FEATURED = 3;
 
-async function fetchFeatured(): Promise<ArticleListItem[]> {
-  const res = await fetch(`/api/articles/featured?limit=${MAX_ITEMS}`, {
-    cache: "no-store",
-  });
-  if (!res.ok) return [];
-  return (await res.json()) ?? [];
+/**
+ * Trae las noticias de portada desde la API del backend:
+ * primero los artículos marcados como destacados y, si faltan, completa con
+ * los más recientes para que la portada siempre muestre tres.
+ */
+async function getFeaturedArticles(): Promise<ArticleListItem[]> {
+  const featured = await fetchApiServer<ArticleListItem[]>(
+    `${apiEndpoints.articles.list}/featured?limit=${MAX_FEATURED}`
+  );
+
+  const items = (Array.isArray(featured) ? featured : []).slice(0, MAX_FEATURED);
+  if (items.length >= MAX_FEATURED) return items;
+
+  const latest = await fetchApiServer<Page<ArticleListItem>>(
+    `${apiEndpoints.articles.list}?page=1&size=${MAX_FEATURED * 2}&sort=newest`
+  );
+
+  const seen = new Set(items.map((article) => article.id));
+  for (const article of latest.items ?? []) {
+    if (items.length >= MAX_FEATURED) break;
+    if (seen.has(article.id)) continue;
+    seen.add(article.id);
+    items.push(article);
+  }
+
+  return items;
 }
 
-const FeaturedMain = () => {
-  const [items, setItems] = useState<ArticleListItem[]>([]);
-  const [index, setIndex] = useState(0);
-  const [mounted, setMounted] = useState(false);
+function formatDate(article: ArticleListItem): string {
+  const date = article.published_at ?? article.created_at;
+  return new Date(date).toLocaleDateString("es", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
 
-  useEffect(() => {
-    setMounted(true);
-    fetchFeatured().then(setItems);
-  }, []);
+const FeaturedMain = async () => {
+  let stories: ArticleListItem[] = [];
+  let errorMessage: string | null = null;
 
-  // Rotación automática cada 4 segundos.
-  useEffect(() => {
-    if (!mounted || items.length <= 1) return;
-    const timer = setInterval(() => {
-      setIndex((i) => (i + 1) % items.length);
-    }, ROTATION_MS);
-    return () => clearInterval(timer);
-  }, [mounted, items.length]);
+  try {
+    stories = await getFeaturedArticles();
+  } catch (error) {
+    errorMessage =
+      error instanceof Error
+        ? error.message
+        : "No se pudieron cargar las noticias destacadas.";
+  }
 
-  const goTo = useCallback((next: number) => {
-    setIndex(((next % items.length) + items.length) % items.length);
-  }, [items.length]);
+  if (errorMessage) {
+    return (
+      <section className="max-w-7xl m-auto py-20">
+        <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#85857d]">
+          No fue posible cargar las noticias destacadas: {errorMessage}
+        </p>
+      </section>
+    );
+  }
 
-  const prev = useCallback(() => goTo(index - 1), [index, goTo]);
-  const next = useCallback(() => goTo(index + 1), [index, goTo]);
-
-  const active = items[index];
-  if (!mounted || items.length === 0) {
+  if (stories.length === 0) {
     return (
       <section className="max-w-7xl m-auto grid min-h-[620px] items-center gap-12 py-20 lg:grid-cols-[1.05fr_1fr] lg:gap-20 lg:py-24">
         <div>
@@ -66,93 +88,120 @@ const FeaturedMain = () => {
     );
   }
 
-  const cover = getImageUrl(active.cover_image_url);
+  const [mainStory, ...rest] = stories;
+  const sideStories = rest.slice(0, 2);
+  const mainCover = getImageUrl(mainStory.cover_image_url);
+  const hasSidebar = sideStories.length > 0;
 
   return (
-    <section className="max-w-7xl m-auto grid min-h-[620px] items-center gap-12 py-20 lg:grid-cols-[1.05fr_1fr] lg:gap-20 lg:py-24">
-      {/* Texto a la izquierda */}
-      <div>
-        <p className="mb-8 flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.2em] text-[#696963]">
-          <span className="size-2 rounded-full bg-[#d8ff48]" /> En portada · {index + 1}
-        </p>
+    <section
+      className={`max-w-7xl m-auto grid items-start gap-12 py-14 lg:gap-14 lg:py-20 ${
+        hasSidebar ? "lg:grid-cols-[1.65fr_1fr]" : ""
+      }`}
+      aria-label="Noticias destacadas"
+    >
+      {/* Portada principal */}
+      <article className="group">
+        <Link href={`/noticias/${mainStory.slug}`} className="block">
+          <div className="relative aspect-[4/3] overflow-hidden bg-[#dedbd1] sm:aspect-[16/9]">
+            {mainCover ? (
+              <Image
+                src={mainCover}
+                alt={mainStory.title}
+                fill
+                loading="eager"
+                fetchPriority="high"
+                className="object-cover transition duration-700 group-hover:scale-[1.03]"
+                sizes="(max-width: 1024px) 100vw, 65vw"
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-[10px] font-bold uppercase tracking-[0.2em] text-[#aaa99f]">
+                Sin imagen
+              </div>
+            )}
+            <span className="absolute left-4 top-4 bg-[#f8f7f3] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.15em]">
+              {mainStory.category?.name ?? "Ensayo · Tecnología humana"}
+            </span>
+          </div>
 
-        <Link href={`/noticias/${active.slug}`} className="group block">
-          <h1 className="max-w-2xl font-serif text-[clamp(3.6rem,7.5vw,7.8rem)] leading-[.87] tracking-[-0.075em] group-hover:text-[#67675f] transition-colors">
-            {active.title}
-          </h1>
-          <p className="mt-9 max-w-md text-[17px] leading-relaxed text-[#5d5d58]">
-            {active.summary}
+          <p className="mt-7 flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.2em] text-[#696963]">
+            <span className="size-2 rounded-full bg-[#d8ff48]" /> En portada
           </p>
-          <span className="mt-10 inline-flex items-center gap-3 border-b border-black pb-2 text-xs font-bold uppercase tracking-[0.16em] transition-all hover:gap-5">
+          <h1 className="mt-4 max-w-3xl font-serif text-[clamp(2.6rem,4.6vw,4.4rem)] leading-[.9] tracking-[-0.06em] transition-colors group-hover:text-[#67675f]">
+            {mainStory.title}
+          </h1>
+          <p className="mt-6 max-w-xl text-[17px] leading-relaxed text-[#5d5d58]">
+            {mainStory.summary}
+          </p>
+          <p className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#85857d]">
+            <span className="inline-flex items-center gap-1.5">
+              <Clock3 className="size-3" /> {formatDate(mainStory)}
+            </span>
+            <span>{mainStory.views_count} vistas</span>
+            <span>{mainStory.author?.username ?? "Redacción"}</span>
+          </p>
+          <span className="mt-8 inline-flex items-center gap-3 border-b border-black pb-2 text-xs font-bold uppercase tracking-[0.16em] transition-all group-hover:gap-5">
             Leer la historia <ArrowRight className="size-4" />
           </span>
         </Link>
-      </div>
+      </article>
 
-      {/* Imagen con slides apilados */}
-      <div className="relative aspect-[4/5] overflow-hidden bg-[#dedbd1] lg:aspect-[5/6]">
-        {items.map((item, i) => {
-          const isActive = i === index;
-          const itemCover = getImageUrl(item.cover_image_url);
-          return (
-            <div
-              key={item.id}
-              className={`absolute inset-0 flex flex-col ${
-                isActive
-                  ? "opacity-100 translate-x-0 pointer-events-auto z-10"
-                  : "opacity-0 -translate-x-4 pointer-events-none"
-              } transition-all duration-500 ease-in-out`}
-            >
-              {itemCover && item ? (
-                <Image
-                  src={itemCover}
-                  alt={item.title}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 1024px) 100vw, 50vw"
-                />
-              ) : null}
-              <div className="absolute bottom-5 left-5 bg-[#f8f7f3] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.15em]">
-                {item.category?.name ?? "Ensayo · Tecnología humana"}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {/* Sidebar con los otros dos destacados */}
+      {hasSidebar && (
+        <aside aria-label="Más noticias destacadas">
+          <div className="flex items-baseline justify-between border-b border-black pb-3">
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#696963]">
+              Más destacadas
+            </h2>
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#aaa99f]">
+              {String(sideStories.length).padStart(2, "0")} historias
+            </span>
+          </div>
 
-      {/* Controles abajo de la imagen */}
-      <div className="col-span-full flex items-center justify-between gap-6 pt-6 lg:pt-10">
-        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-[#696963]">
-          {items.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => goTo(i)}
-              className={`w-1.5 h-1.5 rounded-full transition-all duration-200 ${
-                i === index
-                  ? "bg-[#171717] w-3"
-                  : "bg-black/20 hover:bg-black/40"
-              }`}
-              aria-label={`Ir a la noticia ${i + 1}`}
-            />
-          ))}
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={prev}
-            disabled={items.length <= 1}
-            className="flex items-center justify-center w-9 h-9 rounded-full border border-black/20 bg-[#f8f7f3] text-[#171717] text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#171717] hover:text-white"
-          >
-            <ChevronLeft className="size-4" />
-          </button>
-          <button
-            onClick={next}
-            disabled={items.length <= 1}
-            className="flex items-center justify-center w-9 h-9 rounded-full border border-black/20 bg-[#f8f7f3] text-[#171717] text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:bg-[#171717] hover:text-white"
-          >
-            <ChevronRight className="size-4" />
-          </button>
-        </div>
-      </div>
+          <div className="divide-y divide-black/15">
+            {sideStories.map((story) => {
+              const cover = getImageUrl(story.cover_image_url);
+              return (
+                <Link
+                  key={story.id}
+                  href={`/noticias/${story.slug}`}
+                  className="group flex gap-4 py-6 first:pt-5 lg:block"
+                >
+                  <div className="relative aspect-square w-24 shrink-0 overflow-hidden bg-[#e9e7df] lg:aspect-[16/9] lg:w-full">
+                    {cover ? (
+                      <Image
+                        src={cover}
+                        alt={story.title}
+                        fill
+                        className="object-cover grayscale transition duration-700 group-hover:scale-105 group-hover:grayscale-0"
+                        sizes="(max-width: 1024px) 96px, 33vw"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-[9px] font-bold uppercase tracking-[0.15em] text-[#aaa99f]">
+                        Sin imagen
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="min-w-0 lg:mt-4">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#7a7a72]">
+                      {story.category?.name ?? "General"}
+                    </p>
+                    <h3 className="mt-2 font-serif text-xl leading-[1.08] tracking-[-0.03em] transition-colors group-hover:text-[#67675f] lg:text-2xl">
+                      {story.title}
+                    </h3>
+                    <p className="mt-3 flex items-center gap-2 text-[11px] text-[#85857d]">
+                      <Clock3 className="size-3" /> {formatDate(story)}
+                      {" · "}
+                      {story.views_count} vistas
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </aside>
+      )}
     </section>
   );
 };

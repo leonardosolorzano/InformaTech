@@ -9,7 +9,7 @@ import type { Page, ArticleListItem } from "@/lib/types";
 async function getStories(): Promise<ArticleListItem[]> {
   try {
     const data = await fetchApiServer<Page<ArticleListItem>>(
-      `${apiEndpoints.articles.list}?page=1&size=6&sort=newest`
+      `${apiEndpoints.articles.list}?page=1&size=6&sort=newest&exclude_featured=true`
     );
     return data.items ?? [];
   } catch {
@@ -79,10 +79,10 @@ const HeroNewsGrid = async () => {
                     <Clock3 className="size-3" />{" "}
                     {story.published_at
                       ? new Date(story.published_at).toLocaleDateString("es", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })
                       : "Recientemente"}
                     {" · "}
                     {story.views_count} vistas

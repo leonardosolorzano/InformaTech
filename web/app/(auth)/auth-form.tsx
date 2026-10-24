@@ -4,6 +4,7 @@ import { useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, CheckCircle2, LoaderCircle, LockKeyhole, Newspaper } from "lucide-react";
+import { toast } from "sonner";
 
 type AuthMode = "login" | "register";
 
@@ -78,9 +79,11 @@ export default function AuthForm({ mode }: AuthFormProps) {
       }
 
       if (isRegister) {
+        toast.success("Cuenta creada correctamente");
         setRegistered(true);
         formRef.current?.reset();
       } else {
+        toast.success("Sesión iniciada correctamente");
         const nextParam = new URLSearchParams(window.location.search).get("next");
         const destination = nextParam && nextParam.startsWith("/") ? nextParam : "/";
         router.replace(destination);

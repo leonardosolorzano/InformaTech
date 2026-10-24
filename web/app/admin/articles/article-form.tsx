@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, ImagePlus, LoaderCircle, Save } from "lucide-react";
 import type { ArticleRead, ArticleStatus, CategoryRead } from "@/lib/types";
 import { getImageUrl } from "@/lib/api";
+import { toast } from "sonner";
 
 const inputClassName =
   "mt-2 min-h-11 w-full rounded-xl border border-[#deded5] bg-white px-4 text-sm text-[#171717] outline-none transition placeholder:text-[#92928a] focus:border-[#171717] focus:ring-2 focus:ring-[#171717]/10";
@@ -108,10 +109,12 @@ export default function ArticleForm({ article }: ArticleFormProps) {
         throw new Error(detail || `Error ${res.status}`);
       }
       const saved = (await res.json()) as ArticleRead;
-      router.push(`/admin/articles/${saved.id}/edit`);
+      toast.success(isEdit ? "Artículo actualizado correctamente" : "Artículo creado correctamente");
+      router.push("/admin/articles");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar");
+      toast.error(err instanceof Error ? err.message : "No se pudo guardar");
     } finally {
       setSaving(false);
     }

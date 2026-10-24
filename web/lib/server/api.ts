@@ -21,8 +21,8 @@ export async function fetchApiServer<T>(
   const config: RequestInit = {
     ...options,
     headers,
+    // Datos siempre frescos: la portada refleja al instante lo que publica la API.
     cache: "no-store",
-    next: { revalidate: 60 },
   };
 
   try {
