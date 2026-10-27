@@ -26,4 +26,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=40s \
   CMD python -c "import urllib.request as u; u.urlopen('http://localhost:8000/health')" || exit 1
 
 # Migraciones, datos iniciales y arranque
-CMD ["sh", "-c", "alembic upgrade head && python -m app.initial_data && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"]
+CMD ["sh", "-c", "alembic upgrade head && python -m app.initial_data && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${WEB_CONCURRENCY:-1}"]
