@@ -2,14 +2,15 @@ import { Clock3 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
-import { fetchApiServer } from "@/lib/server/api";
 import { apiEndpoints, getImageUrl } from "@/lib/api";
-import type { Page, ArticleListItem } from "@/lib/types";
+import { formatDate } from "@/lib/format";
+import { fetchApiServer } from "@/lib/server/api";
+import type { ArticleListItem, Page } from "@/lib/types";
 
 async function getStories(): Promise<ArticleListItem[]> {
   try {
     const data = await fetchApiServer<Page<ArticleListItem>>(
-      `${apiEndpoints.articles.list}?page=1&size=6&sort=newest&exclude_featured=true`
+      `${apiEndpoints.articles.list}?page=1&size=6&sort=newest`
     );
     return data.items ?? [];
   } catch {
@@ -17,6 +18,7 @@ async function getStories(): Promise<ArticleListItem[]> {
   }
 }
 
+/** Rejilla "Historias para hoy" con los últimos artículos publicados. */
 const HeroNewsGrid = async () => {
   const stories = await getStories();
 
@@ -76,14 +78,7 @@ const HeroNewsGrid = async () => {
                     {story.title}
                   </h3>
                   <p className="mt-4 flex items-center gap-2 text-xs text-[#85857d]">
-                    <Clock3 className="size-3" />{" "}
-                    {story.published_at
-                      ? new Date(story.published_at).toLocaleDateString("es", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })
-                      : "Recientemente"}
+                    <Clock3 className="size-3" /> {formatDate(story.published_at, "short")}
                     {" · "}
                     {story.views_count} vistas
                   </p>

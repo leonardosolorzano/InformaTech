@@ -1,4 +1,5 @@
-const FooterSection = () => {
+/** Pie del sitio. */
+export function Footer() {
   return (
     <footer className="border-t border-black/10 px-6 py-8">
       <div className="mx-auto flex max-w-7xl flex-col justify-between gap-5 text-[10px] font-bold uppercase tracking-[0.16em] text-[#77776f] sm:flex-row">
@@ -8,6 +9,6 @@ const FooterSection = () => {
       </div>
     </footer>
   );
-};
+}
 
-export default FooterSection;
+export default Footer;

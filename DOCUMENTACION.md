@@ -10,18 +10,19 @@ Backend REST para un sitio de **noticias tecnológicas** donde los usuarios regi
 ## 1. Inicio rápido
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
+python3.14 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
+(cd web && pnpm install)
 cp .env.example .env              # y edita SECRET_KEY
-alembic upgrade head              # crea las tablas
-python -m app.initial_data        # crea admin + 8 categorías base
-uvicorn app.main:app --reload     # http://localhost:8000/docs
 pytest                            # ejecuta los tests
+./scripts/dev.sh                  # backend + frontend (migraciones y seed incluidos)
 ```
+
+`./scripts/dev.sh` usa SQLite por defecto, así que **no hace falta Docker ni PostgreSQL** para desarrollo local. Arranca el backend en <http://localhost:8000/docs> y el frontend en <http://localhost:3000>.
 
 Si el servidor presenta errores relacionados con archivos temporales o compilaciones antiguas, detén los servidores y ejecuta `./scripts/limpiar-cache.sh`. El script elimina cachés de Python, pytest y Next.js; no borra dependencias, configuración, base de datos ni archivos subidos.
 
-**Con Docker (PostgreSQL incluido):** `docker compose up --build`
+**Con Docker (PostgreSQL incluido, requiere Docker instalado):** `docker compose up --build`
 
 Usuario admin por defecto (cámbialo en `.env`): `admin@example.com` / `Admin12345`.
 Documentación interactiva: `/docs` (Swagger) y `/redoc` (desactivadas si `ENVIRONMENT=production`).

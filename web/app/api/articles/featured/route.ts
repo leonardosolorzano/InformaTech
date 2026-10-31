@@ -9,8 +9,7 @@ export async function GET() {
       `${apiEndpoints.articles.list}/featured?limit=3`
     );
     return NextResponse.json(data ?? []);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Error fetching featured articles";
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Error fetching featured articles" }, { status: 500 });
   }
 }

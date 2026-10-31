@@ -1,38 +1,37 @@
-ESTADO DEL PROYECTO INFORMATETECH - COMPLETADO
-===============================================
+ESTADO DEL PROYECTO INFORMATETECH
+=================================
 
-RESUMEN: El proyecto ha sido configurado y puesto en funcionamiento.
+El proyecto funciona en local sin Docker usando SQLite.
 
-ESTADO ACTUAL:
-[✓] Base de datos PostgreSQL (Docker) - Activo en puerto 5432
-[✓] Migraciones Alembic aplicadas - Esquema inicial creado
-[✓] Datos iniciales cargados - Admin: admin@example.com / Admin12345
-[✓] Backend FastAPI - Activo en http://127.0.0.1:8000
-  - Health: http://127.0.0.1:8000/health ✓
-  - Docs: http://127.0.0.1:8000/docs ✓
-  - Redoc: http://127.0.0.1:8000/redoc ✓
-[✓] Frontend Next.js - Activo en http://127.0.0.1:3000
-[✓] Dependencias instaladas (venv + pnpm)
-
-SERVICIOS EN EJECUCIÓN:
-- Backend PID: $(cat /tmp/backend.pid 2>/dev/null)
-- Frontend PID: $(cat /tmp/frontend.pid 2>/dev/null)
+SERVICIOS:
+- Backend FastAPI: http://localhost:8000 (docs en /docs, health en /health)
+- Frontend Next.js: http://localhost:3000
 
 CREDENCIALES ADMIN:
 - Email: admin@example.com
 - Username: admin
 - Password: Admin12345
 
-COMANDOS PARA REINICIAR:
+ARRANQUE:
 ```bash
-# Backend
-cd /home/leo/Documents/Github-porjects/InformaTech && source .venv/bin/activate && uvicorn app.main:app --host 127.0.0.1 --port 8000 &
-
-# Frontend
-cd /home/leo/Documents/Github-porjects/InformaTech/web && pnpm start --port 3000 &
+./scripts/dev.sh
 ```
 
-PRUEBAS:
-- 19/19 tests pasados ✓
+El script aplica migraciones, carga los datos iniciales y arranca backend y frontend.
+Para detenerlos: Ctrl+C.
 
-NOTAS: Todo funciona correctamente. Se puede acceder a la API y al frontend.
+ARRANQUE POR SEPARADO:
+```bash
+# Backend
+.venv/bin/alembic upgrade head
+.venv/bin/python -m app.initial_data
+.venv/bin/uvicorn app.main:app --reload --port 8000
+
+# Frontend (otra terminal)
+cd web && pnpm dev --port 3000
+```
+
+NOTAS:
+- La configuración local está en `.env` (SQLite: `sqlite:///./technews.db`).
+- Docker es opcional; `docker compose up --build` usa PostgreSQL.
+- Si hay errores por cachés antiguas: `./scripts/limpiar-cache.sh`.

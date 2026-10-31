@@ -1,7 +1,7 @@
 import { ArrowUpRight } from "lucide-react";
 
-import { fetchApiServer } from "@/lib/server/api";
 import { apiEndpoints } from "@/lib/api";
+import { fetchApiServer } from "@/lib/server/api";
 import type { TagWithCount } from "@/lib/types";
 
 async function getTopics(): Promise<TagWithCount[]> {
@@ -13,6 +13,7 @@ async function getTopics(): Promise<TagWithCount[]> {
   }
 }
 
+/** Sección "Radar semanal" con las etiquetas más activas. */
 const TopicPillList = async () => {
   const topics = await getTopics();
 
@@ -51,7 +52,7 @@ const TopicPillList = async () => {
                     {topic.articles_count} artículos
                   </span>
                 </span>
-                <ArrowUpRight className="size-5 transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
+                <ArrowUpRight className="size-5 transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
               </a>
             ))}
           </div>
