@@ -1,23 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import {
-  ChevronDown,
-  LogOut,
-  ShieldCheck,
-  UserRound,
-} from "lucide-react";
+import { ChevronDown, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import { useState } from "react";
-import { useAuth } from "./auth-provider";
 
+import { useAuth } from "@/components/providers/auth-provider";
+
+/** Menú de sesión del nav (escritorio): login/registro o dropdown de usuario. */
 export function UserNav() {
   const { user, isLoading, logout } = useAuth();
   const [open, setOpen] = useState(false);
 
   if (isLoading) {
-    return (
-      <div className="h-8 w-24 animate-pulse rounded-full bg-black/5" />
-    );
+    return <div className="h-8 w-24 animate-pulse rounded-full bg-black/5" />;
   }
 
   if (!user) {
@@ -55,7 +50,9 @@ export function UserNav() {
       {open && (
         <div className="absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-black/10 bg-white shadow-lg">
           <div className="border-b border-black/5 px-4 py-3">
-            <p className="text-sm font-semibold">{user.full_name || user.username}</p>
+            <p className="text-sm font-semibold">
+              {user.full_name || user.username}
+            </p>
             <p className="text-xs text-[#686860]">{user.email}</p>
             <span className="mt-1 inline-block rounded-full bg-[#d8ff48] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em]">
               {user.role}

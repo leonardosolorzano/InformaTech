@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
+
+import AdminNav from "@/components/admin/admin-nav";
+import { Logo } from "@/components/shared/logo";
 import { getCurrentUser } from "@/lib/server/auth";
-import AdminNav from "./admin-nav";
 
 export default async function AdminLayout({
   children,
@@ -18,12 +19,7 @@ export default async function AdminLayout({
       <div className="mx-auto flex max-w-7xl flex-col gap-6 px-5 py-6 lg:flex-row lg:px-8">
         <aside className="lg:w-64 lg:shrink-0">
           <div className="mb-6 flex items-center gap-3">
-            <Link
-              href="/"
-              className="text-lg font-black uppercase tracking-tight"
-            >
-              Info<span className="text-[#d8ff48] [-webkit-text-stroke:1px_black]">/</span>Tech
-            </Link>
+            <Logo />
             <span className="rounded-full bg-[#171717] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white">
               Admin
             </span>

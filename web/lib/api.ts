@@ -1,16 +1,11 @@
+import { ApiError } from "./errors";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 const API_DIRECT_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    public message: string,
-    public data?: unknown
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
+// El manejo de errores vive en `lib/errors.ts`; lo re-exportamos para
+// mantener la compatibilidad con los imports existentes.
+export { ApiError } from "./errors";
 
 export async function fetchApi<T>(
   endpoint: string,

@@ -1,9 +1,10 @@
-'use client';
+"use client";
 
 import { ArrowRight } from "lucide-react";
 import { useState } from "react";
 
-const NewsletterBanner = () => {
+/** Banner del newsletter (sección final de la home). */
+export default function NewsletterBanner() {
   const [subscribed, setSubscribed] = useState(false);
 
   return (
@@ -54,6 +55,4 @@ const NewsletterBanner = () => {
       </div>
     </section>
   );
-};
-
-export default NewsletterBanner;
+}
